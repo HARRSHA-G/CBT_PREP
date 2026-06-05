@@ -1,0 +1,693 @@
+{% extends 'cbt_app/base.html' %}
+{% block title %}CBT Exam Room - Practice Engine{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Sandbox Exam Room: Hide external site headers & footers for strict test-taking */
+    header, footer {
+        display: none !important;
+    }
+    
+    /* Remove padding from base.html to eliminate unnecessary top space */
+    main {
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+    
+
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- CBT Interface Workspace -->
+<div class="flex-grow flex flex-col h-screen overflow-hidden no-select">
+    
+    <!-- Top Stats / Control Bar -->
+    <div class="border-b custom-border py-3.5 px-6 flex flex-col md:flex-row justify-between items-center gap-3 shrink-0" style="background-color: var(--bg-card);">
+        <div class="flex items-center gap-4">
+            <div>
+                <span class="text-xs font-bold uppercase tracking-wider text-[#ff6600]">Candidate Session</span>
+                <h2 class="font-mono text-sm font-bold text-neutral-800 dark:text-white">TEST-{{ session.id|stringformat:"s"|slice:":8" }}</h2>
+            </div>
+            <div class="h-6 w-[1px] bg-neutral-800/40 hidden md:block"></div>
+            <div class="hidden md:block">
+                <span class="text-xs font-bold uppercase tracking-wider custom-text-muted">Exam Type</span>
+                <p class="text-xs font-black text-neutral-800 dark:text-white">CBT PREP</p>
+            </div>
+        </div>
+
+        <!-- Dynamic Warnings Alert Banner (Pacing Rule Engine) -->
+        <div id="pacingWarningBar" class="hidden flex items-center gap-2 px-4 py-1.5 rounded border border-orange-500/30 bg-orange-500/5 text-orange-500 text-xs font-bold tracking-wider uppercase animate-pulse">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            Warning: You have <span id="emptyCountLabel">0</span> unanswered questions remaining!
+        </div>
+
+        <!-- Timer Panel -->
+        <div class="flex items-center gap-3 bg-neutral-100 dark:bg-[#121212] px-5 py-2 border custom-border rounded-lg shadow-inner">
+            <svg class="w-5 h-5 text-[#ff6600]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <div>
+                <span class="text-[9px] uppercase tracking-widest custom-text-muted block text-center">Remaining Time</span>
+                <span id="countdownTimer" class="font-mono text-lg font-black tracking-wider text-[#ff6600]">03:00:00</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Layout Grid -->
+    <div class="flex-grow flex flex-col lg:grid lg:grid-cols-4 overflow-y-auto lg:overflow-hidden">
+        
+        <!-- Left Side: Active Question Workspace -->
+        <div class="lg:col-span-3 flex flex-col lg:h-full overflow-y-visible lg:overflow-y-auto border-b lg:border-b-0 lg:border-r custom-border p-4 md:p-8 justify-between shrink-0">
+            <div class="space-y-6">
+                <!-- Question Header -->
+                <div class="flex flex-col md:flex-row justify-between md:items-center gap-3 border-b custom-border pb-4">
+                    <div>
+                        <span id="questionCategory" class="px-2.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-extrabold bg-[#ff6600]/10 border border-[#ff6600]/30 text-[#ff6600]">
+                            Paper 1 - General Awareness
+                        </span>
+                        <h3 class="text-sm custom-text-muted mt-2 font-bold tracking-wider">
+                            Question <span id="currentQuestionNumber" class="text-neutral-800 dark:text-white text-base font-black">1</span> of <span id="totalQuestionsCount">0</span>
+                        </h3>
+                    </div>
+                    <div class="flex gap-2">
+                        <span class="px-3 py-1 border custom-border rounded text-xs font-bold text-neutral-800 dark:text-white bg-neutral-100 dark:bg-neutral-800/10">
+                            Subject: <span id="questionSubjectDisplay" class="text-[#ff6600]">OS</span>
+                        </span>
+                        <span class="px-3 py-1 border custom-border rounded text-xs font-bold text-neutral-800 dark:text-white bg-neutral-100 dark:bg-neutral-800/10">
+                            Topic: <span id="questionSubtopic" class="text-neutral-600 dark:text-neutral-300">Memory Management</span>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Question Text -->
+                <div class="py-4">
+                    <p id="questionText" class="text-lg md:text-xl font-medium leading-relaxed text-neutral-800 dark:text-white whitespace-pre-line">
+                        Loading competitive exam question text block...
+                    </p>
+                </div>
+
+                <!-- MCQs Radio Options -->
+                <div class="space-y-3.5" id="optionsContainer">
+                    <!-- Option A -->
+                    <label class="flex items-center gap-4 p-4 border custom-border rounded-xl cursor-pointer hover:border-[#ff6600] hover:bg-[#ff6600]/5 hover:-translate-y-[1px] hover:shadow-md hover:shadow-orange-glow/10 transition-all duration-300 w-full relative group bg-neutral-50 dark:bg-neutral-900/10">
+                        <input type="radio" name="cbtOption" value="A" class="w-4 h-4 accent-[#ff6600] cursor-pointer">
+                        <div class="flex items-start gap-3">
+                            <span class="font-bold text-[#ff6600] group-hover:scale-105 transition-transform">A.</span>
+                            <span id="optionALabel" class="text-sm font-semibold text-neutral-800 dark:text-neutral-200">Option A text block</span>
+                        </div>
+                    </label>
+
+                    <!-- Option B -->
+                    <label class="flex items-center gap-4 p-4 border custom-border rounded-xl cursor-pointer hover:border-[#ff6600] hover:bg-[#ff6600]/5 hover:-translate-y-[1px] hover:shadow-md hover:shadow-orange-glow/10 transition-all duration-300 w-full relative group bg-neutral-50 dark:bg-neutral-900/10">
+                        <input type="radio" name="cbtOption" value="B" class="w-4 h-4 accent-[#ff6600] cursor-pointer">
+                        <div class="flex items-start gap-3">
+                            <span class="font-bold text-[#ff6600] group-hover:scale-105 transition-transform">B.</span>
+                            <span id="optionBLabel" class="text-sm font-semibold text-neutral-800 dark:text-neutral-200">Option B text block</span>
+                        </div>
+                    </label>
+
+                    <!-- Option C -->
+                    <label class="flex items-center gap-4 p-4 border custom-border rounded-xl cursor-pointer hover:border-[#ff6600] hover:bg-[#ff6600]/5 hover:-translate-y-[1px] hover:shadow-md hover:shadow-orange-glow/10 transition-all duration-300 w-full relative group bg-neutral-50 dark:bg-neutral-900/10">
+                        <input type="radio" name="cbtOption" value="C" class="w-4 h-4 accent-[#ff6600] cursor-pointer">
+                        <div class="flex items-start gap-3">
+                            <span class="font-bold text-[#ff6600] group-hover:scale-105 transition-transform">C.</span>
+                            <span id="optionCLabel" class="text-sm font-semibold text-neutral-800 dark:text-neutral-200">Option C text block</span>
+                        </div>
+                    </label>
+
+                    <!-- Option D -->
+                    <label class="flex items-center gap-4 p-4 border custom-border rounded-xl cursor-pointer hover:border-[#ff6600] hover:bg-[#ff6600]/5 hover:-translate-y-[1px] hover:shadow-md hover:shadow-orange-glow/10 transition-all duration-300 w-full relative group bg-neutral-50 dark:bg-neutral-900/10">
+                        <input type="radio" name="cbtOption" value="D" class="w-4 h-4 accent-[#ff6600] cursor-pointer">
+                        <div class="flex items-start gap-3">
+                            <span class="font-bold text-[#ff6600] group-hover:scale-105 transition-transform">D.</span>
+                            <span id="optionDLabel" class="text-sm font-semibold text-neutral-800 dark:text-neutral-200">Option D text block</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Bottom Action Triggers -->
+            <div class="flex flex-wrap justify-between items-center gap-4 border-t custom-border pt-6 mt-8">
+                <div class="flex gap-3">
+                    <button id="btnPrev" class="px-5 py-2.5 rounded border custom-border hover:bg-[#ff6600] hover:text-black hover:border-[#ff6600] text-sm font-bold transition-all flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                        Previous
+                    </button>
+                    <button id="btnNext" class="px-5 py-2.5 rounded border custom-border hover:bg-[#ff6600] hover:text-black hover:border-[#ff6600] text-sm font-bold transition-all flex items-center gap-2">
+                        Next
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="flex flex-wrap gap-3">
+                    <button id="btnClear" class="px-5 py-2.5 rounded border custom-border hover:border-red-500 hover:text-red-500 hover:bg-red-500/10 text-sm font-bold transition-all bg-transparent">
+                        Clear Response
+                    </button>
+                    <button id="btnReview" class="px-5 py-2.5 rounded border border-[#9333ea] text-[#9333ea] hover:bg-[#9333ea]/10 text-sm font-bold transition-all flex items-center gap-2">
+                        Mark for Review
+                    </button>
+                    <button id="btnSaveNext" class="px-7 py-2.5 rounded bg-gradient-to-r from-[#ff6600] to-[#ff7518] hover:scale-[1.02] text-black font-black text-sm tracking-wider uppercase transition-all shadow-md shadow-[#ff6600]/25">
+                        Save & Next
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Side: Scannable Grid Area -->
+        <div class="flex flex-col lg:h-full overflow-y-visible lg:overflow-hidden shrink-0 mt-8 lg:mt-0" style="background-color: var(--bg-card);">
+
+
+            <!-- Legends Panel -->
+            <div class="p-3 border-b custom-border grid grid-cols-3 gap-1 text-[10px] uppercase font-bold text-center shrink-0">
+                <div class="flex items-center justify-center gap-1.5 py-1 rounded bg-neutral-200/50 dark:bg-[#2c2c2e] text-neutral-600 dark:text-neutral-400 border custom-border">
+                    <span class="w-2 h-2 rounded bg-neutral-400"></span> Unvisited
+                </div>
+                <div class="flex items-center justify-center gap-1.5 py-1 rounded bg-[#ff6600] text-black">
+                    <span class="w-2 h-2 rounded bg-black"></span> Answered
+                </div>
+                <div class="flex items-center justify-center gap-1.5 py-1 rounded border-2 border-[#9333ea] text-[#9333ea]">
+                    <span class="w-2 h-2 rounded bg-[#9333ea]"></span> Flagged
+                </div>
+            </div>
+
+            <!-- Chips Grid -->
+            <div class="flex-grow overflow-y-visible lg:overflow-y-auto p-4 flex flex-col justify-between">
+                <div>
+                    <!-- Questions Grid Container -->
+                    <div id="gridQuestions" class="grid grid-cols-5 sm:grid-cols-8 lg:grid-cols-5 gap-2 select-none">
+                        <!-- JS renders 100 chips -->
+                    </div>
+                </div>
+
+                <!-- Final Submission CTA -->
+                <div class="border-t custom-border pt-4 mt-6 shrink-0">
+                    <button id="btnSubmitTest" class="w-full py-3.5 rounded-lg border-2 border-[#ff6600] hover:bg-[#ff6600] hover:text-black text-[#ff6600] font-black uppercase tracking-widest transition-all" style="background-color: var(--bg-card);">
+                        Submit Examination
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Submission Confirmation Modal -->
+<div id="submitModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+    <div class="w-full max-w-md rounded-xl p-6 border custom-border shadow-2xl relative" style="background-color: var(--bg-card);">
+        <h3 class="text-lg font-black tracking-wider text-neutral-800 dark:text-white border-b custom-border pb-3 flex items-center gap-2">
+            <svg class="w-6 h-6 text-[#ff6600]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Submit Examination Session
+        </h3>
+        
+        <!-- Summary Stats -->
+        <div class="grid grid-cols-3 gap-3 my-6 text-center">
+            <div class="p-3 border custom-border rounded" style="background-color: var(--bg-main);">
+                <p class="text-[10px] custom-text-muted font-bold uppercase tracking-wider">Answered</p>
+                <p id="modalAnswered" class="text-lg font-black text-[#ff6600]">0</p>
+            </div>
+            <div class="p-3 border custom-border rounded" style="background-color: var(--bg-main);">
+                <p class="text-[10px] custom-text-muted font-bold uppercase tracking-wider">Flagged</p>
+                <p id="modalFlagged" class="text-lg font-black text-[#9333ea]">0</p>
+            </div>
+            <div class="p-3 border custom-border rounded" style="background-color: var(--bg-main);">
+                <p class="text-[10px] custom-text-muted font-bold uppercase tracking-wider">Remaining</p>
+                <p id="modalRemaining" class="text-lg font-black text-red-500">0</p>
+            </div>
+        </div>
+
+        <div id="modalWarningMessage" class="hidden mb-6 p-3 border border-red-500/20 bg-red-500/5 rounded text-xs text-red-400 leading-relaxed font-semibold">
+            Warning: You have unanswered questions remaining. Since there is NO negative marking in the Coal India MT exam, it is highly recommended to select an answer for every single question before submission!
+        </div>
+
+        <p class="text-xs custom-text-muted mb-6 leading-relaxed">
+            Are you absolutely sure you want to conclude the examination? You will not be able to change your choices or resume this test room after submitting.
+        </p>
+
+        <div class="flex justify-end gap-3">
+            <button id="btnModalClose" class="px-5 py-2.5 rounded border custom-border hover:bg-[#ff6600] hover:text-black hover:border-[#ff6600] text-xs font-bold transition-all">
+                Cancel & Resume
+            </button>
+            <button id="btnConfirmSubmit" class="px-6 py-2.5 rounded bg-gradient-to-r from-[#ff6600] to-[#ff7518] hover:scale-[1.02] text-black font-black text-xs uppercase tracking-widest transition-all">
+                Confirm Submit
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Custom Error Toast -->
+<div id="errorToast" class="fixed bottom-10 right-10 z-50 transform translate-y-20 opacity-0 transition-all duration-300 flex items-center gap-3 px-5 py-4 rounded-xl border border-red-500/30 bg-red-500/10 backdrop-blur-md shadow-2xl">
+    <div class="h-8 w-8 rounded-full bg-red-500/20 flex items-center justify-center text-red-500 shrink-0">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+    </div>
+    <p id="errorToastMessage" class="text-sm font-bold text-red-500 tracking-wide"></p>
+</div>
+
+<!-- Safe JSON Script blocks to prevent single/double quote escaping SyntaxErrors in questions text -->
+<script id="questions-data" type="application/json">
+    {{ questions_json|safe }}
+</script>
+<script id="answers-data" type="application/json">
+    {{ user_answers_json|safe }}
+</script>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // CBT Sandbox Standard: Force Light Mode inside simulated exam room
+    document.body.classList.remove('dark-mode');
+    document.documentElement.classList.remove('dark');
+
+    // CBT Core State Hydrated from backend
+    const session_id = "{{ session.id }}";
+    const rawQuestions = JSON.parse(document.getElementById('questions-data').textContent);
+    const hydratedAnswers = JSON.parse(document.getElementById('answers-data').textContent);
+    const remainingSecondsServer = parseInt("{{ remaining_seconds }}");
+
+    // Local SPA state tracking
+    const answers = Object.assign({}, hydratedAnswers); // Hydrate local state
+    const flagged = {};
+    const visited = {};
+
+    // Initial visited setup based on hydrated answers
+    rawQuestions.forEach(q => {
+        if (answers[q.id]) {
+            visited[q.id] = true;
+        }
+    });
+
+    let currentIdx = 0;
+
+    // DOM Elements Cache
+    const questionCategory = document.getElementById('questionCategory');
+    const currentQuestionNumber = document.getElementById('currentQuestionNumber');
+    const questionSubjectDisplay = document.getElementById('questionSubjectDisplay');
+    const questionSubtopic = document.getElementById('questionSubtopic');
+    const questionText = document.getElementById('questionText');
+    const optionALabel = document.getElementById('optionALabel');
+    const optionBLabel = document.getElementById('optionBLabel');
+    const optionCLabel = document.getElementById('optionCLabel');
+    const optionDLabel = document.getElementById('optionDLabel');
+    const optionsRadios = document.getElementsByName('cbtOption');
+
+    const btnPrev = document.getElementById('btnPrev');
+    const btnNext = document.getElementById('btnNext');
+    const btnClear = document.getElementById('btnClear');
+    const btnReview = document.getElementById('btnReview');
+    const btnSaveNext = document.getElementById('btnSaveNext');
+
+    const gridQuestions = document.getElementById('gridQuestions');
+
+    const btnSubmitTest = document.getElementById('btnSubmitTest');
+    const submitModal = document.getElementById('submitModal');
+    const btnModalClose = document.getElementById('btnModalClose');
+    const btnConfirmSubmit = document.getElementById('btnConfirmSubmit');
+    const pacingWarningBar = document.getElementById('pacingWarningBar');
+    const emptyCountLabel = document.getElementById('emptyCountLabel');
+
+    // 1. Persistent Epoch-Anchored Countdown Timer
+    function initCountdown() {
+        const storageKey = 'cbt_end_epoch_' + session_id;
+        let endEpoch = sessionStorage.getItem(storageKey);
+
+        if (!endEpoch) {
+            // Anchor to current epoch + remaining seconds provided from server
+            endEpoch = Date.now() + (remainingSecondsServer * 1000);
+            sessionStorage.setItem(storageKey, endEpoch);
+        } else {
+            endEpoch = parseInt(endEpoch);
+        }
+
+        function updateTimer() {
+            const now = Date.now();
+            const difference = endEpoch - now;
+
+            if (difference <= 0) {
+                clearInterval(timerInterval);
+                document.getElementById('countdownTimer').innerText = "00:00";
+                autoSubmitExam();
+                return;
+            }
+
+            const totalSecs = Math.floor(difference / 1000);
+            const hrs = Math.floor(totalSecs / 3600);
+            const mins = Math.floor((totalSecs % 3600) / 60);
+            const secs = totalSecs % 60;
+
+            const timeStr = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            document.getElementById('countdownTimer').innerText = timeStr;
+        }
+
+        updateTimer();
+        const timerInterval = setInterval(updateTimer, 1000);
+    }
+
+    // 2. Background Asynchronous Progress Saver (SQLite backend)
+    let saveTimeout = null;
+    function persistProgress() {
+        // Debounce network requests to prevent slamming database
+        if (saveTimeout) clearTimeout(saveTimeout);
+
+        saveTimeout = setTimeout(() => {
+            fetch(`/api/save_progress/${session_id}/`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCsrfToken()
+                },
+                body: JSON.stringify({ answers })
+            })
+            .then(res => {
+                if (res.status === 403) {
+                    return res.json().then(data => {
+                        if (data.redirect_url) {
+                            window.location.href = data.redirect_url;
+                        }
+                    });
+                }
+                return res.json();
+            })
+            .then(data => {
+                if (data && data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                }
+                console.log("Progress saved safely offline:", data);
+            })
+            .catch(err => {
+                console.error("Database connection failure, holding changes locally:", err);
+            });
+        }, 500); // 500ms debounce
+    }
+
+    function getCsrfToken() {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, 10) === 'csrftoken=') {
+                    cookieValue = decodeURIComponent(cookie.substring(10));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // 3. UI Hydration & Question Loader
+    function loadQuestion(index) {
+        if (index < 0 || index >= rawQuestions.length) return;
+        currentIdx = index;
+        const q = rawQuestions[index];
+
+        // Mark as visited
+        visited[q.id] = true;
+
+        // Render details
+        currentQuestionNumber.innerText = q.num;
+        questionSubjectDisplay.innerText = q.subject_display;
+        questionSubtopic.innerText = q.subtopic;
+        questionText.innerText = q.question_text;
+        optionALabel.innerText = q.option_a;
+        optionBLabel.innerText = q.option_b;
+        optionCLabel.innerText = q.option_c;
+        optionDLabel.innerText = q.option_d;
+
+        questionCategory.innerText = "Mock Test Question";
+        questionCategory.className = "px-2.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-extrabold bg-[#ff6600]/10 border border-[#ff6600]/30 text-[#ff6600]";
+
+        // Hydrate radio selection
+        const savedChoice = answers[q.id];
+        optionsRadios.forEach(radio => {
+            radio.checked = (radio.value === savedChoice);
+            
+            // Highlight selected container border dynamically
+            const labelContainer = radio.closest('label');
+            if (radio.checked) {
+                labelContainer.classList.add('border-[#ff6600]', 'bg-[#ff6600]/5');
+            } else {
+                labelContainer.classList.remove('border-[#ff6600]', 'bg-[#ff6600]/5');
+            }
+        });
+
+
+
+        // Render grid highlight
+        highlightActiveChip(q.num);
+        updateActionButtonsState();
+        checkPacingRuleEngine();
+    }
+
+    // High contrast chip selector highlighting
+    function highlightActiveChip(num) {
+        document.querySelectorAll('.chip').forEach(c => {
+            c.classList.remove('ring-2', 'ring-[#ff6600]', 'ring-offset-2', 'ring-offset-white', 'dark:ring-offset-black');
+        });
+        const activeChip = document.getElementById(`chip-${num}`);
+        if (activeChip) {
+            activeChip.classList.add('ring-2', 'ring-[#ff6600]', 'ring-offset-2', 'ring-offset-white', 'dark:ring-offset-black');
+        }
+    }
+
+    function updateActionButtonsState() {
+        btnPrev.disabled = (currentIdx === 0);
+        btnPrev.classList.toggle('opacity-50', currentIdx === 0);
+        
+        btnNext.disabled = (currentIdx === rawQuestions.length - 1);
+        btnNext.classList.toggle('opacity-50', currentIdx === rawQuestions.length - 1);
+
+        // Update Review button text/style based on current flag
+        const currentQ = rawQuestions[currentIdx];
+        if (flagged[currentQ.id]) {
+            btnReview.innerText = "Unmark Review";
+            btnReview.classList.add('bg-[#9333ea]/10');
+        } else {
+            btnReview.innerText = "Mark for Review";
+            btnReview.classList.remove('bg-[#9333ea]/10');
+        }
+    }
+
+    // 4. Render Layout Index Chips
+    function buildGridChips() {
+        gridQuestions.innerHTML = "";
+
+        rawQuestions.forEach(q => {
+            const btn = document.createElement('button');
+            btn.id = `chip-${q.num}`;
+            btn.className = `chip text-xs font-black py-2 rounded border custom-border transition-all flex items-center justify-center font-mono cursor-pointer`;
+            btn.innerText = q.num;
+
+            // Apply style mapping states
+            updateChipStyle(btn, q.id);
+
+            // Handle Nav clicks
+            btn.addEventListener('click', () => loadQuestion(q.num - 1));
+
+            gridQuestions.appendChild(btn);
+        });
+    }
+
+    function updateChipStyle(btn, qid) {
+        const isAnswered = !!answers[qid];
+        const isFlagged = !!flagged[qid];
+
+        // Clean out states
+        btn.className = `chip text-xs font-black py-2.5 rounded transition-all flex items-center justify-center font-mono cursor-pointer`;
+
+        if (isFlagged) {
+            btn.classList.add('border-2', 'border-[#9333ea]', 'text-[#9333ea]', 'bg-transparent');
+        } else if (isAnswered) {
+            btn.classList.add('bg-[#ff6600]', 'text-black', 'border-none');
+        } else {
+            btn.classList.add('bg-neutral-200', 'text-neutral-700', 'border-neutral-300');
+        }
+    }
+
+
+
+    // 5. Action Controllers
+    function saveActiveResponse() {
+        const activeQ = rawQuestions[currentIdx];
+        let selectedOption = null;
+
+        optionsRadios.forEach(radio => {
+            if (radio.checked) selectedOption = radio.value;
+        });
+
+        if (selectedOption) {
+            answers[activeQ.id] = selectedOption;
+        } else {
+            delete answers[activeQ.id];
+        }
+
+        // Trigger chip redraw
+        const chip = document.getElementById(`chip-${activeQ.num}`);
+        if (chip) updateChipStyle(chip, activeQ.id);
+
+        persistProgress();
+        checkPacingRuleEngine();
+    }
+
+    // Pacing Rules Engine calculation
+    function checkPacingRuleEngine() {
+        const totalAnswersCount = Object.keys(answers).length;
+        const totalQuestions = rawQuestions.length;
+        const emptyCount = totalQuestions - totalAnswersCount;
+
+        if (emptyCount > 0) {
+            pacingWarningBar.classList.remove('hidden');
+            emptyCountLabel.innerText = emptyCount;
+        } else {
+            pacingWarningBar.classList.add('hidden');
+        }
+    }
+
+    // Click handler for radio label wraps
+    document.querySelectorAll('#optionsContainer label').forEach(label => {
+        label.addEventListener('click', (e) => {
+            // Find option and check it
+            const radio = label.querySelector('input[type="radio"]');
+            if (radio && e.target !== radio) {
+                radio.checked = true;
+            }
+            saveActiveResponse();
+            
+            // Highlight selected container border dynamically
+            document.querySelectorAll('#optionsContainer label').forEach(l => {
+                l.classList.remove('border-[#ff6600]', 'bg-[#ff6600]/5');
+            });
+            label.classList.add('border-[#ff6600]', 'bg-[#ff6600]/5');
+        });
+    });
+
+    btnSaveNext.addEventListener('click', () => {
+        saveActiveResponse();
+        if (currentIdx < rawQuestions.length - 1) {
+            loadQuestion(currentIdx + 1);
+        }
+    });
+
+    btnReview.addEventListener('click', () => {
+        const activeQ = rawQuestions[currentIdx];
+        flagged[activeQ.id] = !flagged[activeQ.id];
+
+        // Redraw
+        const chip = document.getElementById(`chip-${activeQ.num}`);
+        if (chip) updateChipStyle(chip, activeQ.id);
+
+        updateActionButtonsState();
+        
+        // Auto advance to next question
+        if (currentIdx < rawQuestions.length - 1) {
+            loadQuestion(currentIdx + 1);
+        }
+    });
+
+    btnClear.addEventListener('click', () => {
+        optionsRadios.forEach(radio => radio.checked = false);
+        document.querySelectorAll('#optionsContainer label').forEach(l => {
+            l.classList.remove('border-[#ff6600]', 'bg-[#ff6600]/5');
+        });
+        saveActiveResponse();
+    });
+
+    btnPrev.addEventListener('click', () => {
+        if (currentIdx > 0) loadQuestion(currentIdx - 1);
+    });
+
+    btnNext.addEventListener('click', () => {
+        if (currentIdx < rawQuestions.length - 1) loadQuestion(currentIdx + 1);
+    });
+
+
+
+    // Theme toggle listener integration (if it exists)
+    const themeToggleBtn = document.getElementById('themeToggle');
+    if (themeToggleBtn) {
+        themeToggleBtn.addEventListener('click', () => {
+            setTimeout(buildGridChips, 200); // Redraw chip colors corresponding to theme background
+        });
+    }
+
+    // 6. Test Submission & Scoring Handlers
+    function showSubmitModal() {
+        saveActiveResponse(); // Commit any uncompleted state
+
+        const totalQuestions = rawQuestions.length;
+        const totalAnswered = Object.keys(answers).length;
+        const totalFlagged = Object.keys(flagged).filter(k => flagged[k]).length;
+        const totalRemaining = totalQuestions - totalAnswered;
+
+        document.getElementById('modalAnswered').innerText = totalAnswered;
+        document.getElementById('modalFlagged').innerText = totalFlagged;
+        document.getElementById('modalRemaining').innerText = totalRemaining;
+
+        const warningMsg = document.getElementById('modalWarningMessage');
+        if (totalRemaining > 0) {
+            warningMsg.classList.remove('hidden');
+        } else {
+            warningMsg.classList.add('hidden');
+        }
+
+        submitModal.classList.remove('hidden');
+    }
+
+    function autoSubmitExam() {
+        console.warn("Time expired. Running automatic examination submit.");
+        submitModal.classList.add('hidden');
+        executeSubmitAction();
+    }
+
+    function executeSubmitAction() {
+        // Clear persistent timer epochs
+        sessionStorage.removeItem('cbt_end_epoch_' + session_id);
+
+        fetch(`/api/submit_exam/${session_id}/`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCsrfToken()
+            },
+            body: JSON.stringify({ answers })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.redirect_url) {
+                window.location.href = data.redirect_url;
+            }
+        })
+        .catch(err => {
+            showErrorToast("Error submitting. Please check your network connection and try again.");
+            console.error(err);
+        });
+    }
+
+    function showErrorToast(message) {
+        const toast = document.getElementById('errorToast');
+        document.getElementById('errorToastMessage').innerText = message;
+        toast.classList.remove('translate-y-20', 'opacity-0');
+        setTimeout(() => {
+            toast.classList.add('translate-y-20', 'opacity-0');
+        }, 5000);
+    }
+
+    btnSubmitTest.addEventListener('click', showSubmitModal);
+    btnModalClose.addEventListener('click', () => submitModal.classList.add('hidden'));
+    btnConfirmSubmit.addEventListener('click', executeSubmitAction);
+
+    // Initial Engine Boot sequence
+    document.getElementById('totalQuestionsCount').innerText = rawQuestions.length;
+    buildGridChips();
+    loadQuestion(0);
+    initCountdown();
+</script>
+{% endblock %}

@@ -1,0 +1,383 @@
+{% extends 'cbt_app/base.html' %}
+{% block title %}Bulk Import MCQs - CBT Engine{% endblock %}
+
+{% block content %}
+<div class="flex-grow flex flex-col md:flex-row w-full min-h-[calc(100vh-120px)] relative overflow-hidden">
+    {% include 'cbt_app/sidebar.html' %}
+
+    <main class="flex-grow p-6 md:p-10 relative overflow-y-auto max-h-[calc(100vh-120px)] md:max-h-none flex flex-col gap-8 no-select">
+    <!-- Header Navigation -->
+    <div class="flex items-center justify-between border-b custom-border pb-6">
+        <div>
+            <span class="text-xs text-[#ff6600] font-black uppercase tracking-widest">Seeding Console</span>
+            <h2 class="text-2xl md:text-3xl font-extrabold tracking-tight mt-1 bg-clip-text text-transparent bg-gradient-to-r from-neutral-900 to-neutral-500 dark:from-white dark:to-neutral-400">Bulk Import Questions</h2>
+            <p class="text-xs custom-text-muted mt-1">Paste custom formatted scripts to dynamically insert high-quality MCQs into active mock test pools.</p>
+        </div>
+    </div>
+
+    <!-- Main Content Split Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        
+        <!-- Left Side: Interactive Script Editor & Paste Area -->
+        <div class="lg:col-span-7 flex flex-col gap-6">
+            <form method="POST" id="importForm" class="flex flex-col gap-6">
+                {% csrf_token %}
+                <div class="rounded-xl p-6 custom-card shadow-sm flex flex-col gap-4 relative" style="background-color: var(--bg-card);">
+                    <div class="flex justify-between items-center border-b custom-border pb-3">
+                        <span class="text-xs font-black uppercase tracking-wider text-neutral-800 flex items-center gap-2">
+                            <span class="h-2 w-2 rounded-full bg-[#ff6600] animate-pulse"></span>
+                            Paste Script Below
+                        </span>
+                        <div id="validationBadge" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-neutral-100 text-neutral-500 border custom-border">
+                            Awaiting Input
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
+                            <!-- Custom Test Name -->
+                            <div class="flex flex-col gap-1 w-full sm:col-span-1">
+                                <label for="testNameInput" class="text-[10px] font-extrabold text-neutral-700 uppercase tracking-wider">Test Package Name</label>
+                                <input type="text" id="testNameInput" name="test_name" required placeholder="e.g. Mock Test 1" class="p-2 border custom-border rounded-lg text-xs font-bold focus:outline-none focus:border-[#ff6600] bg-white w-full">
+                            </div>
+                            <!-- Marks per Correct -->
+                            <div class="flex flex-col gap-1 w-full">
+                                <label for="marksCorrectInput" class="text-[10px] font-extrabold text-neutral-700 uppercase tracking-wider">Marks (Correct Answer)</label>
+                                <input type="number" id="marksCorrectInput" name="marks_per_correct" step="0.1" min="0.1" value="1.0" required class="p-2 border custom-border rounded-lg text-xs font-bold focus:outline-none focus:border-[#ff6600] bg-white w-full">
+                            </div>
+                            <!-- Negative Marks -->
+                            <div class="flex flex-col gap-1 w-full">
+                                <label for="negativeMarksInput" class="text-[10px] font-extrabold text-neutral-700 uppercase tracking-wider">Negative Marks (Penalty)</label>
+                                <input type="number" id="negativeMarksInput" name="negative_marks" step="0.1" min="0.0" value="0.0" required class="p-2 border custom-border rounded-lg text-xs font-bold focus:outline-none focus:border-[#ff6600] bg-white w-full">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="relative">
+                        <textarea name="json_data" id="jsonArea" rows="16" 
+                            class="w-full font-mono text-xs p-4 border custom-border rounded-lg focus:outline-none focus:border-[#ff6600] focus:ring-1 focus:ring-[#ff6600]/30 transition-all placeholder-neutral-400 bg-neutral-50/50"
+                            placeholder='[&#10;  {&#10;    "subject": "OPERATING SYSTEMS",&#10;    "subtopic": "Scheduling Models",&#10;    "question_text": "Paste your custom MCQ script here...",&#10;    "option_a": "First Option",&#10;    "option_b": "Second Option",&#10;    "option_c": "Third Option",&#10;    "option_d": "Fourth Option",&#10;    "correct_option": "B",&#10;    "explanation": "Custom answer explanation block."&#10;  }&#10;]'></textarea>
+                    </div>
+
+                    <!-- Real-Time Diagnostics Alert Card -->
+                    <div id="diagnosticsCard" class="hidden rounded-lg p-4 border transition-all duration-300">
+                        <div class="flex items-start gap-3 text-left">
+                            <!-- Diagnostic Icon -->
+                            <div id="diagnosticsIcon" class="mt-0.5 h-6 w-6 rounded-full flex items-center justify-center text-xs font-black shrink-0">
+                            </div>
+                            <!-- Diagnostic Content -->
+                            <div class="flex-grow flex flex-col gap-1">
+                                <h4 id="diagnosticsTitle" class="text-xs font-black uppercase tracking-wider"></h4>
+                                <p id="diagnosticsMsg" class="text-xs font-medium leading-relaxed"></p>
+                                <div id="diagnosticsTips" class="hidden mt-2.5 border-t border-current/10 pt-2 flex flex-col gap-1 text-[10px] font-mono leading-relaxed opacity-90">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submission buttons -->
+                    <div class="flex items-center justify-between gap-4 mt-2">
+                        <button type="button" id="btnValidate" class="py-2.5 px-4 rounded-lg border custom-border text-xs font-extrabold hover:border-neutral-400 hover:bg-neutral-50 transition-all active:scale-95">
+                            Validate Script Syntax
+                        </button>
+                        
+                        <button type="submit" id="btnSubmit" disabled 
+                            class="py-2.5 px-6 rounded-lg text-xs font-black uppercase tracking-wider bg-neutral-300 text-neutral-500 cursor-not-allowed transition-all shadow-md active:scale-95">
+                            Upload and Seed MCQs
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Right Side: Format specifications and copyable template -->
+        <div class="lg:col-span-5 flex flex-col gap-6">
+            <!-- Valid categories card -->
+            <div class="rounded-xl p-6 custom-card shadow-sm" style="background-color: var(--bg-card);">
+                <h3 class="text-sm font-black uppercase tracking-wider text-neutral-800 border-b custom-border pb-3 mb-4">
+                    1. Dynamic Subject System
+                </h3>
+                <p class="text-xs custom-text-muted mb-4 leading-relaxed">
+                    Our platform now supports <b>100% dynamic subjects</b>. You do not need to select from a predefined list.
+                </p>
+                <div class="p-4 border custom-border rounded bg-neutral-50 flex flex-col gap-2">
+                    <p class="text-xs custom-text-muted">
+                        Every question in your JSON array must contain a <code class="px-1.5 py-0.5 rounded bg-neutral-200 font-mono text-[10px] text-[#ff6600] font-bold">subject</code> field. The system will automatically create the subject category and group your questions dynamically!
+                    </p>
+                    <p class="text-xs custom-text-muted mt-1">
+                        Examples: <code class="font-mono text-[10px] font-bold text-neutral-800">"MATHEMATICS"</code>, <code class="font-mono text-[10px] font-bold text-neutral-800">"GENERAL KNOWLEDGE"</code>, <code class="font-mono text-[10px] font-bold text-neutral-800">"CODING"</code>, etc.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Interactive Template copy-paste card -->
+            <div class="rounded-xl p-6 custom-card shadow-sm" style="background-color: var(--bg-card);">
+                <div class="flex justify-between items-center border-b custom-border pb-3 mb-4">
+                    <h3 class="text-sm font-black uppercase tracking-wider text-neutral-800">
+                        2. Copy Sample Template
+                    </h3>
+                    <button type="button" id="btnCopyTemplate" class="text-[10px] font-black uppercase tracking-wider text-[#ff6600] bg-[#ff6600]/10 border border-[#ff6600]/30 py-1 px-3 rounded hover:bg-[#ff6600]/25 transition-all">
+                        Copy JSON
+                    </button>
+                </div>
+                
+                <pre id="templateCode" class="text-[10px] font-mono leading-relaxed p-4 bg-neutral-900 text-green-400 rounded-lg overflow-x-auto select-all max-h-[220px]">
+[
+  {
+    "subject": "DBMS",
+    "subtopic": "SQL Normalization",
+    "question_text": "Which normal form addresses transitive dependencies in relations?",
+    "option_a": "Second Normal Form (2NF)",
+    "option_b": "Third Normal Form (3NF)",
+    "option_c": "Boyce-Codd Normal Form (BCNF)",
+    "option_d": "Fourth Normal Form (4NF)",
+    "correct_option": "B",
+    "explanation": "3NF specifically addresses transitive dependencies, requiring that every non-prime attribute is non-transitively dependent on every candidate key."
+  }
+]</pre>
+            </div>
+        </div>
+    </div>
+    </main>
+</div>
+
+<!-- Modal Dialog showing Success / Fail Results dynamically -->
+{% if success_count is not null %}
+<div id="resultsModal" class="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-neutral-200 shadow-2xl p-6 md:p-8 max-w-md w-full text-center flex flex-col items-center gap-4 animate-scaleUp">
+        <div class="h-16 w-16 bg-green-100 rounded-full flex items-center justify-center text-green-500 mb-2">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+        </div>
+        <h3 class="text-xl font-extrabold text-neutral-800">MCQs Uploaded Successfully!</h3>
+        <p class="text-sm text-neutral-500 leading-relaxed">
+            Congratulations! The dynamic parser processed your custom JSON script perfectly and successfully seeded **<span class="text-[#ff6600] font-black">{{ success_count }}</span>** high-quality competitive questions into the live database.
+        </p>
+        <div class="w-full border-t custom-border pt-4 mt-2">
+            <a href="{% url 'dashboard' %}" class="block w-full py-2.5 bg-[#ff6600] text-black font-black uppercase tracking-wider text-xs rounded-lg shadow hover:-translate-y-[1px] transition-all hover:shadow-orange-glow active:scale-95">
+                Go to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if error_message %}
+<div id="errorModal" class="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-neutral-200 shadow-2xl p-6 md:p-8 max-w-md w-full text-center flex flex-col items-center gap-4">
+        <div class="h-16 w-16 bg-red-100 rounded-full flex items-center justify-center text-red-500 mb-2">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+        </div>
+        <h3 class="text-xl font-extrabold text-neutral-800">Script Parsing Failed</h3>
+        <p class="text-xs text-red-500 font-mono bg-red-50 p-3 rounded border border-red-200/50 w-full text-left break-words overflow-x-auto max-h-[150px]">
+            {{ error_message }}
+        </p>
+        <p class="text-sm text-neutral-500 leading-relaxed">
+            Please make sure that the script syntax is standard JSON and that all questions contain the required blueprint keys correctly formatted.
+        </p>
+        <button type="button" onclick="document.getElementById('errorModal').remove();" 
+            class="w-full py-2.5 bg-neutral-800 hover:bg-neutral-900 text-white font-extrabold uppercase tracking-wider text-xs rounded-lg shadow transition-all active:scale-95">
+            Retry Editing Script
+        </button>
+    </div>
+</div>
+{% endif %}
+
+<style>
+    @keyframes scaleUp {
+        0% { transform: scale(0.95); opacity: 0; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-scaleUp {
+        animation: scaleUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+</style>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const valBadge = document.getElementById('validationBadge');
+    const btnSubmit = document.getElementById('btnSubmit');
+    const jsonArea = document.getElementById('jsonArea');
+    const btnValidate = document.getElementById('btnValidate');
+    const btnCopyTemplate = document.getElementById('btnCopyTemplate');
+    const templateCode = document.getElementById('templateCode');
+
+    // Real-Time Diagnostics Elements
+    const diagnosticsCard = document.getElementById('diagnosticsCard');
+    const diagnosticsIcon = document.getElementById('diagnosticsIcon');
+    const diagnosticsTitle = document.getElementById('diagnosticsTitle');
+    const diagnosticsMsg = document.getElementById('diagnosticsMsg');
+    const diagnosticsTips = document.getElementById('diagnosticsTips');
+
+    // Reset Form Indicators
+    function resetIndicators() {
+        valBadge.innerText = 'Awaiting Input';
+        valBadge.className = 'px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-neutral-100 text-neutral-500 border custom-border';
+    }
+
+    // Diagnostics UI Card Display controller
+    function showDiagnosticsCard(status, title, message, tips = []) {
+        if (!diagnosticsCard) return;
+
+        if (status === 'empty') {
+            diagnosticsCard.classList.add('hidden');
+            return;
+        }
+
+        diagnosticsCard.classList.remove('hidden');
+
+        if (status === 'success') {
+            diagnosticsCard.className = "rounded-lg p-4 border bg-green-50 border-green-200 text-green-800 transition-all duration-300";
+            diagnosticsIcon.className = "mt-0.5 h-6 w-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 bg-green-100 text-green-600 border border-green-200/50";
+            diagnosticsIcon.innerHTML = "✓";
+            diagnosticsTitle.innerText = title || "Script Validated Successfully!";
+            diagnosticsMsg.innerText = message;
+            diagnosticsTips.classList.add('hidden');
+        } else if (status === 'error') {
+            diagnosticsCard.className = "rounded-lg p-4 border bg-red-50 border-red-200 text-red-800 transition-all duration-300";
+            diagnosticsIcon.className = "mt-0.5 h-6 w-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 bg-red-100 text-red-600 border border-red-200/50";
+            diagnosticsIcon.innerHTML = "✕";
+            diagnosticsTitle.innerText = title || "Blueprint Schema Error";
+            diagnosticsMsg.innerText = message;
+
+            if (tips.length > 0) {
+                diagnosticsTips.classList.remove('hidden');
+                diagnosticsTips.className = "mt-2.5 border-t border-red-200 pt-2 flex flex-col gap-1 text-[10px] font-mono leading-relaxed opacity-95 text-red-700";
+                diagnosticsTips.innerHTML = tips.map(tip => `<div class="flex items-start gap-1"><span>•</span><span>${tip}</span></div>`).join('');
+            } else {
+                diagnosticsTips.classList.add('hidden');
+            }
+        }
+    }
+
+    // Copy Sample JSON Template to text clipboard
+    if (btnCopyTemplate && templateCode) {
+        btnCopyTemplate.addEventListener('click', () => {
+            navigator.clipboard.writeText(templateCode.innerText.trim()).then(() => {
+                const originalText = btnCopyTemplate.innerText;
+                btnCopyTemplate.innerText = 'COPIED!';
+                btnCopyTemplate.classList.remove('bg-[#ff6600]/10', 'text-[#ff6600]');
+                btnCopyTemplate.classList.add('bg-green-500', 'text-white');
+                
+                setTimeout(() => {
+                    btnCopyTemplate.innerText = originalText;
+                    btnCopyTemplate.classList.add('bg-[#ff6600]/10', 'text-[#ff6600]');
+                    btnCopyTemplate.classList.remove('bg-green-500', 'text-white');
+                }, 1500);
+            });
+        });
+    }
+
+    // Validate pasted script helper
+    function validateScript() {
+        resetIndicators();
+        const value = jsonArea.value.trim();
+        if (!value) {
+            valBadge.innerText = 'Awaiting Input';
+            valBadge.className = 'px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-neutral-100 text-neutral-500 border custom-border';
+            btnSubmit.disabled = true;
+            btnSubmit.className = 'py-2.5 px-6 rounded-lg text-xs font-black uppercase tracking-wider bg-neutral-300 text-neutral-500 cursor-not-allowed transition-all shadow-md';
+            showDiagnosticsCard('empty');
+            return false;
+        }
+
+        try {
+            const data = JSON.parse(value);
+            if (!Array.isArray(data)) {
+                throw new Error("Script must represent a JSON array '[ { ... } ]'");
+            }
+            if (data.length === 0) {
+                throw new Error("Pasted array is empty. Seed at least 1 question.");
+            }
+
+            // Dynamic Pool: No strict length validation required. Accept any number of valid questions.
+
+            const validOptions = ['A', 'B', 'C', 'D'];
+
+            data.forEach((q, idx) => {
+                if (!q.subject || typeof q.subject !== 'string') {
+                    throw new Error(`Item ${idx+1}: Missing or empty 'subject'`);
+                }
+                const subj = q.subject.trim().toUpperCase();
+
+                if (!q.subtopic || typeof q.subtopic !== 'string') {
+                    throw new Error(`Item ${idx+1}: Missing or empty 'subtopic'`);
+                }
+                if (!q.question_text || typeof q.question_text !== 'string') {
+                    throw new Error(`Item ${idx+1}: Missing or empty 'question_text'`);
+                }
+                if (!q.option_a || !q.option_b || !q.option_c || !q.option_d) {
+                    throw new Error(`Item ${idx+1}: Missing choice option value (a, b, c, or d)`);
+                }
+                if (!q.correct_option || !validOptions.includes(q.correct_option.trim().toUpperCase())) {
+                    throw new Error(`Item ${idx+1}: 'correct_option' must be A, B, C, or D`);
+                }
+            });
+
+            // If success
+            valBadge.innerText = `Valid Syntax (${data.length} MCQs)`;
+            valBadge.className = 'px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-green-100 text-green-600 border border-green-300/40';
+
+            btnSubmit.disabled = false;
+            btnSubmit.className = 'py-2.5 px-6 rounded-lg text-xs font-black uppercase tracking-wider bg-[#ff6600] text-black hover:shadow-lg hover:shadow-orange-glow active:scale-95 transition-all shadow-md cursor-pointer';
+            
+            showDiagnosticsCard('success', '🎉 Script Validated Successfully!', `All ${data.length} MCQs in your script passed strict competitive schema validation. Click "Upload and Seed MCQs" to insert them into the active database!`);
+            return true;
+
+        } catch (e) {
+            valBadge.innerText = `Error: ${e.message.slice(0, 45)}...`;
+            valBadge.className = 'px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-red-100 text-red-600 border border-red-300/40';
+            
+            btnSubmit.disabled = true;
+            btnSubmit.className = 'py-2.5 px-6 rounded-lg text-xs font-black uppercase tracking-wider bg-neutral-300 text-neutral-500 cursor-not-allowed transition-all shadow-md';
+
+            let tips = [];
+            let errorTitle = "⚠️ Schema Integrity Error";
+            
+            if (e instanceof SyntaxError) {
+                errorTitle = "⚠️ JSON Formatting Syntax Error";
+                tips = [
+                    "All JSON keys and string values must be enclosed in double quotes (e.g. \"subject\": \"OS\", not single quotes).",
+                    "Make sure every item inside the array is separated by a comma (no trailing comma on the last item).",
+                    "Ensure your script properly starts with [ and ends with ]."
+                ];
+
+
+            } else if (e.message.includes("Missing or empty 'subject'")) {
+                errorTitle = "⚠️ Missing Subject Field";
+                tips = [
+                    "Every question must have a 'subject' property defined.",
+                    "You can enter any custom string as your subject!"
+                ];
+            } else if (e.message.includes("correct_option")) {
+                errorTitle = "⚠️ Invalid Correct Choice Mapping";
+                tips = [
+                    "The 'correct_option' field must represent exactly one uppercase character: A, B, C, or D.",
+                    "Make sure it matches one of the choice options defined in your item."
+                ];
+            } else {
+                tips = [
+                    "Ensure all required blueprint fields (subject, subtopic, question_text, option_a/b/c/d, correct_option) are present.",
+                    "Double check the spelling and formatting of all keys in your JSON object."
+                ];
+            }
+
+            showDiagnosticsCard('error', errorTitle, e.message, tips);
+            return false;
+        }
+    }
+
+
+    if (btnValidate) {
+        btnValidate.addEventListener('click', validateScript);
+    }
+
+    if (jsonArea) {
+        jsonArea.addEventListener('input', validateScript);
+    }
+</script>
+{% endblock %}

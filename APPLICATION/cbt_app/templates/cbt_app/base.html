@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="A self-contained dynamic Practice CBT Engine. Offline, zero-flicker, obsidian theme.">
+    <title>{% block title %}CBT Practice Engine{% endblock %}</title>
+    <!-- Dynamic SVG Favicon -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%0A%20%20%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2215%22%20fill%3D%22%23ff6600%22%2F%3E%0A%20%20%3Ctext%20x%3D%2250%25%22%20y%3D%2254%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20font-family%3D%22Outfit%2C%20sans-serif%22%20font-weight%3D%22800%22%20font-size%3D%2255%22%20fill%3D%22%23000000%22%3EC%3C%2Ftext%3E%0A%3C%2Fsvg%3E">
+    <!-- Google Fonts: Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        obsidian: {
+                            DEFAULT: '#121212',
+                            card: '#1c1c1e',
+                            light: '#2c2c2e'
+                        },
+                        orange: {
+                            DEFAULT: '#ff6600',
+                            accent: '#ff7518',
+                            glow: 'rgba(255, 102, 0, 0.15)'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            /* Softer, more premium neutral palette */
+            --bg-main: #f8f9fa;
+            --bg-card: #ffffff;
+            --bg-card-hover: #ffffff;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --border-color: rgba(209, 213, 219, 0.6);
+            --accent: #ff6600;
+            --accent-hover: #ff7518;
+            --accent-glow: rgba(255, 102, 0, 0.12);
+            --chip-unvisited: #f3f4f6;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: softFadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes softFadeIn {
+            0% { opacity: 0; transform: translateY(8px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        .custom-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.03), 0 2px 6px -2px rgba(0, 0, 0, 0.02);
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            border-radius: 1rem;
+        }
+
+        .custom-card:hover {
+            border-color: rgba(255, 102, 0, 0.3);
+            box-shadow: 0 10px 25px -5px rgba(255, 102, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+            transform: translateY(-2px);
+        }
+
+        .custom-border {
+            border-color: var(--border-color);
+        }
+
+        .custom-text-muted {
+            color: var(--text-muted);
+        }
+
+        /* Prevent text selection in UI elements */
+        .no-select {
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Premium Soft Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.4);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(107, 114, 128, 0.6);
+        }
+
+        /* Universal Focus Ring */
+        *:focus-visible {
+            outline: 2px solid rgba(255, 102, 0, 0.5);
+            outline-offset: 2px;
+        }
+        
+        /* Soften all transitions globally */
+        a, button, input {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="min-h-screen flex flex-col">
+    <!-- Navigation Header -->
+    <header class="fixed top-0 left-0 right-0 z-50 border-b custom-border w-full py-4 px-6 md:px-12 flex justify-between items-center no-select" style="background-color: var(--bg-card);">
+        <a href="{% url 'dashboard' %}" class="flex items-center gap-3">
+            <!-- Sleek Orange/Obsidian logo -->
+            <div class="h-10 w-10 rounded bg-[#ff6600] flex items-center justify-center font-bold text-black text-xl shadow-lg shadow-orange-glow/50">
+                C
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-wider flex items-center gap-2">
+                    CBT <span class="text-[#ff6600] font-black">PREP</span>
+                </h1>
+                <p class="text-xs custom-text-muted tracking-widest uppercase">CBT Practice Engine</p>
+            </div>
+        </a>
+
+        <!-- Mobile Hamburger Menu Button (Shows only on mobile) -->
+        <div class="flex items-center gap-4">
+            <button id="menuToggleBtn" class="md:hidden p-2 border custom-border rounded hover:border-[#ff6600] transition-colors focus:outline-none" aria-label="Toggle Navigation Sidebar">
+                <svg class="w-6 h-6 text-[#ff6600]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow flex flex-col w-full pt-[72px] pb-10">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer - Fixed to bottom of viewport -->
+    <footer class="fixed bottom-0 left-0 right-0 z-50 border-t custom-border py-2 px-6 text-center text-xs custom-text-muted" style="background-color: var(--bg-card);">
+        <p>© 2026 Coal India Limited MT Practice Engine. Built for offline, fast performance. Zero analytical trackers.</p>
+    </footer>
+
+    <!-- Global Scripts -->
+    <script>
+        // Force strict examination Light Mode across all portal views
+        localStorage.setItem('theme', 'light');
+        document.body.classList.remove('dark-mode');
+        document.documentElement.classList.remove('dark');
+
+        // Hide mobile menu button if sidebar is not present on the page
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!document.getElementById('sidebarDrawer')) {
+                const btn = document.getElementById('menuToggleBtn');
+                if (btn) btn.classList.add('hidden');
+            }
+        });
+    </script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

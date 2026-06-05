@@ -1,0 +1,324 @@
+{% extends 'cbt_app/base.html' %}
+{% block title %}Exam Results Diagnostics Room{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 md:px-8 py-8 flex-grow">
+    <!-- Top Nav Back Link -->
+    <div class="mb-6">
+        <a href="{% url 'dashboard' %}" class="inline-flex items-center gap-2 text-[#ff6600] hover:text-[#ff7518] font-bold text-sm tracking-wider uppercase transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            </svg>
+            Back to Dashboard
+        </a>
+    </div>
+
+    <!-- Main Results Overview Summary -->
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8 items-stretch">
+        <!-- Giant Score Card badge -->
+        <div class="rounded-xl p-6 flex flex-col items-center justify-center text-center custom-card relative overflow-hidden" style="background-color: var(--bg-card);">
+            <div class="absolute top-0 left-0 w-full h-1 bg-[#ff6600]"></div>
+            <span class="text-xs font-black uppercase tracking-widest custom-text-muted">Total Score Achieved</span>
+            
+            <div class="my-6 relative flex items-center justify-center">
+                <!-- Circular Orange Glow representation -->
+                <div class="absolute inset-0 rounded-full bg-[#ff6600]/10 blur-xl"></div>
+                <div class="h-36 w-36 rounded-full border-4 border-[#ff6600] flex flex-col items-center justify-center bg-neutral-100 dark:bg-black/40 z-10">
+                    <span class="text-4xl font-black text-[#ff6600]">{{ correct_count }}</span>
+                    <span class="text-[10px] custom-text-muted font-bold tracking-wider uppercase border-t custom-border pt-1 mt-1">out of {{ total_questions }}</span>
+                </div>
+            </div>
+            
+            <span class="px-3 py-1 rounded bg-[#ff6600]/10 border border-[#ff6600]/30 text-xs font-bold text-[#ff6600]">
+                Accuracy: {{ accuracy_percentage }}%
+            </span>
+        </div>
+
+        <!-- Metric Parameters Panel -->
+        <div class="lg:col-span-2 rounded-xl p-6 custom-card grid grid-cols-2 gap-4 items-center" style="background-color: var(--bg-card);">
+            <!-- Param Item -->
+            <div class="p-4 border custom-border rounded-lg" style="background-color: var(--bg-main);">
+                <span class="text-[10px] custom-text-muted font-bold uppercase tracking-wider block">Time Spent</span>
+                <span class="text-lg font-black text-neutral-800 dark:text-white mt-1 block">{{ duration_str }}</span>
+                <span class="text-[9px] custom-text-muted block">Out of {{ allowed_mins }} Minutes limit</span>
+            </div>
+
+            <!-- Param Item -->
+            <div class="p-4 border custom-border rounded-lg border-green-500/20 bg-green-500/5">
+                <span class="text-[10px] text-green-400 font-bold uppercase tracking-wider block">Correct Answers</span>
+                <span class="text-lg font-black text-green-400 mt-1 block">{{ correct_count }}</span>
+                <span class="text-[9px] custom-text-muted block">Dynamic marks added</span>
+            </div>
+
+            <!-- Param Item -->
+            <div class="p-4 border custom-border rounded-lg border-red-500/20 bg-red-500/5">
+                <span class="text-[10px] text-red-400 font-bold uppercase tracking-wider block">Incorrect Answers</span>
+                <span class="text-lg font-black text-red-400 mt-1 block">{{ incorrect_count }}</span>
+                <span class="text-[9px] custom-text-muted block">Dynamic penalty applied</span>
+            </div>
+
+            <!-- Param Item -->
+            <div class="p-4 border custom-border rounded-lg" style="background-color: var(--bg-main);">
+                <span class="text-[10px] custom-text-muted font-bold uppercase tracking-wider block">Skipped / Blanks</span>
+                <span class="text-lg font-black text-neutral-800 dark:text-white mt-1 block">{{ unattempted_count }}</span>
+                <span class="text-[9px] custom-text-muted block">Missed marks potential</span>
+            </div>
+        </div>
+
+        <!-- Performance Brief Status -->
+        <div class="rounded-xl p-6 flex flex-col justify-between custom-card" style="background-color: var(--bg-card);">
+            <div>
+                <h3 class="text-sm font-black uppercase tracking-wider border-b custom-border pb-2.5">Cut-off Analysis</h3>
+                <div class="mt-4">
+                    {% if accuracy_percentage >= 75 %}
+                        <div class="text-green-400 font-extrabold text-sm uppercase tracking-wider">
+                            Excellent Achievement!
+                        </div>
+                        <p class="text-xs custom-text-muted mt-2 leading-relaxed">
+                            Your score is comfortably above the target cut-off. Continue practicing to cement your high ranks!
+                        </p>
+                    {% elif accuracy_percentage >= 60 %}
+                        <div class="text-orange-400 font-extrabold text-sm uppercase tracking-wider">
+                            Borderline Clearance
+                        </div>
+                        <p class="text-xs custom-text-muted mt-2 leading-relaxed">
+                            You have crossed the general pass criteria, but remain close to competitive margins. Focus on core concepts to push higher.
+                        </p>
+                    {% else %}
+                        <div class="text-red-400 font-extrabold text-sm uppercase tracking-wider">
+                            Revision Required
+                        </div>
+                        <p class="text-xs custom-text-muted mt-2 leading-relaxed">
+                            Your score is currently below competitive cut-offs. Go through the incorrect answers list below and review explanations carefully.
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="pt-4 border-t custom-border mt-4 flex items-center gap-3">
+                <a href="{% url 'dashboard' %}" class="w-full text-center py-2.5 rounded bg-[#ff6600] text-black hover:bg-[#ff7518] text-xs font-black uppercase tracking-widest transition-all hover:scale-[1.02] shadow-md hover:shadow-orange-500/25">
+                    Retry New Test
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subject Diagnostics Row -->
+    <div class="rounded-xl p-6 custom-card mb-8" style="background-color: var(--bg-card);">
+        <h3 class="text-base font-extrabold tracking-wide mb-4 border-b custom-border pb-3">
+            Subject-wise Concept Mastery Diagnostic Matrix
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {% for metric in session_subject_metrics %}
+                <div class="border custom-border rounded-lg p-4 relative overflow-hidden" style="background-color: var(--bg-main);">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <h4 class="text-xs font-black text-neutral-800 dark:text-white uppercase tracking-wider">{{ metric.name }}</h4>
+                            <span class="text-[9px] custom-text-muted uppercase font-bold tracking-widest block mt-0.5">
+                                Accuracy: {{ metric.accuracy }}%
+                            </span>
+                        </div>
+                        <span class="text-xs font-mono font-black text-[#ff6600]">
+                            {{ metric.correct }} <span class="custom-text-muted text-[10px]">/ {{ metric.total }}</span>
+                        </span>
+                    </div>
+
+                    <!-- Progress bar -->
+                    <div class="w-full bg-neutral-200 dark:bg-neutral-800 h-2 rounded overflow-hidden mt-3">
+                        <div class="bg-[#ff6600] h-full transition-all rounded" style="width: {{ metric.accuracy }}%;"></div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Detailed Question Review Workspace -->
+    <div class="rounded-xl p-6 custom-card" style="background-color: var(--bg-card);">
+        <!-- Navigation Review Tabs & Filters -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b custom-border pb-5 mb-6">
+            <div>
+                <h3 class="text-lg font-extrabold tracking-wide">Question-by-Question Diagnostic Review</h3>
+                <p class="text-xs custom-text-muted mt-1">Review correct options alongside highly explanatory notes.</p>
+            </div>
+            
+            <div class="flex flex-wrap gap-2">
+                <button onclick="filterReview('all')" id="tabAll" class="px-4 py-2 text-xs font-black uppercase tracking-wider rounded border border-[#ff6600] text-black bg-[#ff6600] focus:outline-none transition-all">
+                    All ({{ total_questions }})
+                </button>
+                <button onclick="filterReview('correct')" id="tabCorrect" class="px-4 py-2 text-xs font-black uppercase tracking-wider rounded border custom-border text-green-400 hover:bg-green-500/10 focus:outline-none transition-all">
+                    Correct ({{ correct_count }})
+                </button>
+                <button onclick="filterReview('incorrect')" id="tabIncorrect" class="px-4 py-2 text-xs font-black uppercase tracking-wider rounded border custom-border text-red-400 hover:bg-red-500/10 focus:outline-none transition-all">
+                    Incorrect ({{ incorrect_count }})
+                </button>
+                <button onclick="filterReview('skipped')" id="tabSkipped" class="px-4 py-2 text-xs font-black uppercase tracking-wider rounded border custom-border text-neutral-400 hover:bg-neutral-500/10 focus:outline-none transition-all">
+                    Skipped ({{ unattempted_count }})
+                </button>
+            </div>
+        </div>
+
+        <!-- Question List Container -->
+        <div class="space-y-6" id="reviewQuestionsContainer">
+            {% for item in questions_analysis %}
+                <div class="question-row border custom-border rounded-xl p-6 relative overflow-hidden" 
+                     data-status="{% if not item.is_attempted %}skipped{% elif item.is_correct %}correct{% else %}incorrect{% endif %}"
+                     style="background-color: var(--bg-main);">
+                    
+                    <!-- Top Status Badge -->
+                    <div class="flex flex-wrap justify-between items-center gap-3 border-b custom-border pb-3 mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="font-mono text-sm font-black text-[#ff6600]">Q. {{ item.num }}</span>
+                            <span class="px-2.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider bg-neutral-200/50 dark:bg-neutral-800 border custom-border custom-text-muted">
+                                {{ item.question.get_subject_display }}
+                            </span>
+                            <span class="text-xs custom-text-muted font-medium">Topic: {{ item.question.subtopic }}</span>
+                        </div>
+                        
+                        <div>
+                            {% if not item.is_attempted %}
+                                <span class="px-3 py-1 rounded-full text-[10px] uppercase font-black tracking-wider border border-neutral-500/30 text-neutral-400 bg-neutral-500/5">
+                                    Skipped / Unanswered
+                                </span>
+                            {% elif item.is_correct %}
+                                <span class="px-3 py-1 rounded-full text-[10px] uppercase font-black tracking-wider border border-green-500/30 text-green-400 bg-green-500/5">
+                                    Correct Option (+1)
+                                </span>
+                            {% else %}
+                                <span class="px-3 py-1 rounded-full text-[10px] uppercase font-black tracking-wider border border-red-500/30 text-red-400 bg-red-500/5">
+                                    Incorrect Option (0)
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Question Text -->
+                    <p class="text-base font-semibold leading-relaxed text-neutral-800 dark:text-white mb-5">{{ item.question.question_text }}</p>
+
+                    <!-- Options display with color statuses -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
+                        <!-- Option A -->
+                        <div class="p-3.5 border rounded-lg flex items-start gap-3 text-sm font-semibold
+                            {% if item.shuffled_correct_option == 'A' %}
+                                border-green-500 bg-green-500/5 text-green-400
+                            {% elif item.user_choice == 'A' and not item.is_correct %}
+                                border-red-500 bg-red-500/5 text-red-400
+                            {% else %}
+                                custom-border text-neutral-700 dark:text-neutral-300
+                            {% endif %}">
+                            <span class="font-extrabold uppercase {% if item.shuffled_correct_option == 'A' %}text-green-400{% elif item.user_choice == 'A' %}text-red-400{% else %}text-[#ff6600]{% endif %}">A.</span>
+                            <span>{{ item.shuffled_option_a }}</span>
+                        </div>
+
+                        <!-- Option B -->
+                        <div class="p-3.5 border rounded-lg flex items-start gap-3 text-sm font-semibold
+                            {% if item.shuffled_correct_option == 'B' %}
+                                border-green-500 bg-green-500/5 text-green-400
+                            {% elif item.user_choice == 'B' and not item.is_correct %}
+                                border-red-500 bg-red-500/5 text-red-400
+                            {% else %}
+                                custom-border text-neutral-700 dark:text-neutral-300
+                            {% endif %}">
+                            <span class="font-extrabold uppercase {% if item.shuffled_correct_option == 'B' %}text-green-400{% elif item.user_choice == 'B' %}text-red-400{% else %}text-[#ff6600]{% endif %}">B.</span>
+                            <span>{{ item.shuffled_option_b }}</span>
+                        </div>
+
+                        <!-- Option C -->
+                        <div class="p-3.5 border rounded-lg flex items-start gap-3 text-sm font-semibold
+                            {% if item.shuffled_correct_option == 'C' %}
+                                border-green-500 bg-green-500/5 text-green-400
+                            {% elif item.user_choice == 'C' and not item.is_correct %}
+                                border-red-500 bg-red-500/5 text-red-400
+                            {% else %}
+                                custom-border text-neutral-700 dark:text-neutral-300
+                            {% endif %}">
+                            <span class="font-extrabold uppercase {% if item.shuffled_correct_option == 'C' %}text-green-400{% elif item.user_choice == 'C' %}text-red-400{% else %}text-[#ff6600]{% endif %}">C.</span>
+                            <span>{{ item.shuffled_option_c }}</span>
+                        </div>
+
+                        <!-- Option D -->
+                        <div class="p-3.5 border rounded-lg flex items-start gap-3 text-sm font-semibold
+                            {% if item.shuffled_correct_option == 'D' %}
+                                border-green-500 bg-green-500/5 text-green-400
+                            {% elif item.user_choice == 'D' and not item.is_correct %}
+                                border-red-500 bg-red-500/5 text-red-400
+                            {% else %}
+                                custom-border text-neutral-700 dark:text-neutral-300
+                            {% endif %}">
+                            <span class="font-extrabold uppercase {% if item.shuffled_correct_option == 'D' %}text-green-400{% elif item.user_choice == 'D' %}text-red-400{% else %}text-[#ff6600]{% endif %}">D.</span>
+                            <span>{{ item.shuffled_option_d }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Selected vs Correct indicators in case of error -->
+                    <div class="flex flex-wrap gap-4 text-xs font-bold uppercase tracking-wider mb-5">
+                        <span class="text-neutral-400">Correct Option: <span class="text-green-400 font-black text-sm">{{ item.shuffled_correct_option }}</span></span>
+                        <span class="text-neutral-400">Your Choice: 
+                            {% if item.user_choice %}
+                                <span class="{% if item.is_correct %}text-green-400{% else %}text-red-400{% endif %} font-black text-sm">{{ item.user_choice }}</span>
+                            {% else %}
+                                <span class="text-orange-400">Skipped</span>
+                            {% endif %}
+                        </span>
+                    </div>
+
+                    <!-- Explanatory Panel with Accent Orange border -->
+                    {% if item.question.explanation %}
+                        <div class="border border-[#ff6600]/30 rounded-lg p-4 bg-[#ff6600]/5 flex gap-3.5 items-start">
+                            <div class="h-6 w-6 rounded bg-[#ff6600] flex items-center justify-center font-bold text-black text-xs shrink-0 no-select mt-0.5">
+                                i
+                            </div>
+                            <div>
+                                <span class="text-[10px] uppercase font-black tracking-widest text-[#ff6600] block mb-1">Concept Explanation</span>
+                                <p class="text-xs leading-relaxed text-neutral-700 dark:text-neutral-300">{{ item.question.explanation }}</p>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function filterReview(status) {
+        // Remove active state from all buttons
+        const tabs = ['tabAll', 'tabCorrect', 'tabIncorrect', 'tabSkipped'];
+        tabs.forEach(t => {
+            const btn = document.getElementById(t);
+            if (btn) {
+                btn.classList.remove('text-black', 'bg-[#ff6600]', 'border-[#ff6600]');
+                
+                // Add default style back based on type
+                if (t === 'tabCorrect') btn.classList.add('text-green-400');
+                else if (t === 'tabIncorrect') btn.classList.add('text-red-400');
+                else if (t === 'tabSkipped') btn.classList.add('text-neutral-400');
+                else btn.classList.add('text-neutral-400');
+            }
+        });
+
+        // Set active button
+        const activeId = 'tab' + status.charAt(0).toUpperCase() + status.slice(1);
+        const activeBtn = document.getElementById(activeId);
+        if (activeBtn) {
+            activeBtn.className = `px-4 py-2 text-xs font-black uppercase tracking-wider rounded border border-[#ff6600] text-black bg-[#ff6600] focus:outline-none transition-all`;
+        }
+
+        // Toggle visibility of rows
+        const rows = document.querySelectorAll('.question-row');
+        rows.forEach(row => {
+            if (status === 'all') {
+                row.classList.remove('hidden');
+            } else {
+                const rowStatus = row.getAttribute('data-status');
+                if (rowStatus === status) {
+                    row.classList.remove('hidden');
+                } else {
+                    row.classList.add('hidden');
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}
